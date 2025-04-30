@@ -1,0 +1,68 @@
+import React from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { deleteContact } from '../redux/contact/contactSlice';
+
+// Simple Button component for consistent styling
+const ActionButton = ({ onClick, children, className = '' }) => (
+    <button
+        onClick={onClick}
+        className={`px-2 py-1 text-xs font-medium rounded focus:outline-none focus:ring-2 focus:ring-offset-1 ${className}`}
+    >
+        {children}
+    </button>
+);
+
+function ContactList({ onView, onEdit }) { // Accept onView and onEdit handlers as props
+  const contacts = useSelector((state) => state.contact.contacts);
+  const dispatch = useDispatch();
+
+  const handleDelete = (id) => {
+    if (window.confirm('Are you sure you want to delete this contact?')) {
+      dispatch(deleteContact(id));
+    }
+  };
+
+  return (
+    <div className="p-4 max-w-lg mx-auto my-5">
+      <h2 className="text-xl font-semibold mb-4">Contact List</h2>
+      {contacts.length === 0 ? (
+        <p className="text-gray-500">No contacts added yet.</p>
+      ) : (
+        <ul className="space-y-3">
+          {contacts.map((contact) => (
+            <li key={contact.id} className="p-4 border rounded shadow-sm bg-white flex justify-between items-center">
+              {/* Contact Info */}
+              <div className="flex-1 min-w-0 mr-4">
+                <p className="font-medium truncate">{contact.firstName} {contact.lastName}</p>
+                {contact.nickname && <p className="text-sm text-gray-600 truncate">({contact.nickname})</p>}
+              </div>
+              {/* Action Buttons */}
+              <div className="flex space-x-2 flex-shrink-0">
+                 <ActionButton
+                    onClick={() => onView(contact)} // Pass the whole contact object
+                    className="bg-blue-500 hover:bg-blue-600 text-white focus:ring-blue-400"
+                 >
+                    View
+                 </ActionButton>
+                 <ActionButton
+                    onClick={() => onEdit(contact.id)} // Pass only the ID for editing
+                    className="bg-yellow-500 hover:bg-yellow-600 text-white focus:ring-yellow-400"
+                 >
+                    Edit
+                 </ActionButton>
+                 <ActionButton
+                    onClick={() => handleDelete(contact.id)} // Pass ID for deleting
+                    className="bg-red-500 hover:bg-red-600 text-white focus:ring-red-400"
+                  >
+                    Delete
+                 </ActionButton>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export default ContactList; 
