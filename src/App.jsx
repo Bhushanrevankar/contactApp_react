@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux'
 import ContactForm from './components/ContactForm';
 import ContactList from './components/ContactList';
 import ViewContactModal from './components/ViewContactModal';
+import { Toaster } from 'react-hot-toast';
 
 function App() {
   // State for View Modal
@@ -38,6 +39,7 @@ function App() {
 
   return (
     <div className="container mx-auto p-4">
+      <Toaster position="top-center" reverseOrder={false} />
       <h1 className="text-3xl font-bold text-center my-6 text-indigo-700">Contact App</h1>
       <ContactForm
         contactToEdit={contactToEdit}

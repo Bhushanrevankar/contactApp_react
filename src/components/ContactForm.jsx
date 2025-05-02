@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { addContact, updateContact } from '../redux/contact/contactSlice';
+import toast from 'react-hot-toast';
 
 // Define initial empty state structure outside the component
 const initialFormState = {
@@ -85,10 +86,12 @@ function ContactForm({ contactToEdit, onCancelEdit }) {
       if (isEditing) {
         // Dispatch update action - ensure ID is included
         dispatch(updateContact({ ...formData, id: contactToEdit.id }));
+        toast.success('Contact updated successfully!');
         resetForm(); // Reset form and exit edit mode via onCancelEdit
       } else {
         // Dispatch add action
         dispatch(addContact(formData));
+        toast.success('Contact added successfully!');
         resetForm(); // Just reset the form fields
       }
     } else {

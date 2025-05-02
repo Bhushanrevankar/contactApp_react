@@ -1,6 +1,7 @@
 import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { deleteContact } from '../redux/contact/contactSlice';
+import toast from 'react-hot-toast';
 
 // Simple Button component for consistent styling
 const ActionButton = ({ onClick, children, className = '' }) => (
@@ -19,6 +20,7 @@ function ContactList({ onView, onEdit }) { // Accept onView and onEdit handlers 
   const handleDelete = (id) => {
     if (window.confirm('Are you sure you want to delete this contact?')) {
       dispatch(deleteContact(id));
+      toast.success('Contact deleted successfully!');
     }
   };
 
