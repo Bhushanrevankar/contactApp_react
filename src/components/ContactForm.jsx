@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
-import { addContact, updateContact } from '../redux/contact/contactSlice';
+import { addContactThunk, updateContactThunk } from '../redux/contact/contactSlice';
 import toast from 'react-hot-toast';
 
 // Define initial empty state structure outside the component
 const initialFormState = {
   firstName: '',
   lastName: '',
+  name: '',
   nickname: '',
   dob: '',
   // Ensure phones/emails always have at least one entry for the UI
@@ -21,18 +22,30 @@ function ContactForm({ contactToEdit, onCancelEdit }) {
 
   // Effect to populate form when contactToEdit changes
   useEffect(() => {
-    if (isEditing) {
-      // Ensure we have at least one phone/email field even if contactToEdit doesn't
+    if (isEditing && contactToEdit) {
+      // Ensure phones/emails arrays exist and have at least one entry
       const phones = contactToEdit.phones && contactToEdit.phones.length > 0
                        ? contactToEdit.phones
                        : [{ type: 'Mobile', number: '' }];
       const emails = contactToEdit.emails && contactToEdit.emails.length > 0
                        ? contactToEdit.emails
                        : [{ type: 'Personal', address: '' }];
+      // If backend returns 'name' and not firstName/lastName, adapt here
+      const nameParts = contactToEdit.name ? contactToEdit.name.split(' ') : ['', ''];
+      const firstName = contactToEdit.firstName || nameParts[0] || '';
+      const lastName = contactToEdit.lastName || nameParts.slice(1).join(' ') || '';
 
-      setFormData({ ...contactToEdit, phones, emails });
+      setFormData({
+        ...initialFormState, // Start with initial to ensure all fields are present
+        ...contactToEdit,   // Spread the contact to edit
+        id: contactToEdit.id, // or contactToEdit._id if you haven't mapped it in slice
+        firstName,
+        lastName,
+        phones, 
+        emails,
+      });
     } else {
-      setFormData(initialFormState); // Reset form if not editing
+      setFormData(initialFormState);
     }
   }, [contactToEdit, isEditing]);
 
@@ -42,60 +55,76 @@ function ContactForm({ contactToEdit, onCancelEdit }) {
   };
 
   const handleDynamicChange = (index, field, subField, value) => {
-    // Create a deep copy to avoid state mutation issues
-    const updatedFormData = JSON.parse(JSON.stringify(formData));
-    if (updatedFormData[field] && updatedFormData[field][index]) {
-       updatedFormData[field][index][subField] = value;
-       setFormData(updatedFormData);
-    }
+    const updatedArray = formData[field].map((item, i) => 
+      i === index ? { ...item, [subField]: value } : item
+    );
+    setFormData({ ...formData, [field]: updatedArray });
   };
 
   const addDynamicField = (field) => {
     const defaultEntry = field === 'phones'
       ? { type: 'Mobile', number: '' }
       : { type: 'Personal', address: '' };
-    // Ensure the field array exists before trying to spread it
-    const currentFieldArray = formData[field] || [];
-    setFormData({ ...formData, [field]: [...currentFieldArray, defaultEntry] });
+    setFormData({ ...formData, [field]: [...(formData[field] || []), defaultEntry] });
   };
 
   const removeDynamicField = (index, field) => {
-    // Create a deep copy
-    const updatedFormData = JSON.parse(JSON.stringify(formData));
-    if (updatedFormData[field] && updatedFormData[field].length > 1) { // Keep at least one field
-        updatedFormData[field].splice(index, 1);
-        setFormData(updatedFormData);
-    } else if (updatedFormData[field] && updatedFormData[field].length === 1) {
-        // If it's the last one, just clear its contents
-        const subField = field === 'phones' ? 'number' : 'address';
-        updatedFormData[field][0][subField] = '';
-        setFormData(updatedFormData);
+    if (formData[field].length > 1) {
+      const updatedArray = formData[field].filter((_, i) => i !== index);
+      setFormData({ ...formData, [field]: updatedArray });
+    } else { // If only one item, clear its content instead of removing the row
+      const subField = field === 'phones' ? 'number' : 'address';
+      const updatedArray = [{ ...formData[field][0], [subField]: '' }];
+      setFormData({ ...formData, [field]: updatedArray });
     }
   };
 
   const resetForm = () => {
     setFormData(initialFormState);
     if (onCancelEdit) {
-        onCancelEdit(); // Call parent cancellation handler if editing
+        onCancelEdit();
     }
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (formData.firstName && formData.lastName) { // Basic validation
+    // Basic validation: ensure name or firstName/lastName is present
+    const hasName = formData.name || (formData.firstName && formData.lastName);
+    if (!hasName) {
+      toast.error('Name (or First Name and Last Name) is required.');
+      return;
+    }
+
+    // Prepare data for backend (it might expect `name` or `firstName`/`lastName`)
+    // Let's assume backend expects `name`, `email`, `phone` as primary fields based on schema
+    // and `firstName`, `lastName`, `nickname`, `dob`, `phones`, `emails` are also accepted.
+    
+    // If your backend strictly uses `name`, combine `firstName` and `lastName`.
+    // If it uses `firstName` and `lastName`, ensure they are sent.
+    // For this example, we'll send what we have, assuming backend schema is flexible or uses specific fields.
+    let submissionData = { ...formData };
+    if (!submissionData.name && submissionData.firstName && submissionData.lastName) {
+        // If only firstName and lastName are filled, and backend might prefer a single 'name' field
+        // submissionData.name = `${submissionData.firstName} ${submissionData.lastName}`.trim();
+        // Decide if you want to remove firstName/lastName if name is primary, or send all.
+        // For now, sending all and assuming backend schema is flexible or uses specific fields.
+    }
+
+    // Remove the local 'id' field if it exists, backend manages its own _id
+    const { id, ...dataForBackend } = submissionData; 
+
+    try {
       if (isEditing) {
-        // Dispatch update action - ensure ID is included
-        dispatch(updateContact({ ...formData, id: contactToEdit.id }));
+        // contactToEdit.id is the _id from MongoDB (mapped to id in Redux state)
+        await dispatch(updateContactThunk({ id: contactToEdit.id, ...dataForBackend })).unwrap();
         toast.success('Contact updated successfully!');
-        resetForm(); // Reset form and exit edit mode via onCancelEdit
       } else {
-        // Dispatch add action
-        dispatch(addContact(formData));
+        await dispatch(addContactThunk(dataForBackend)).unwrap();
         toast.success('Contact added successfully!');
-        resetForm(); // Just reset the form fields
       }
-    } else {
-      alert('First Name and Last Name are required.');
+      resetForm();
+    } catch (error) { // Error from unwrap (rejectWithValue payload)
+      toast.error(`Failed: ${error}`);
     }
   };
 
@@ -104,26 +133,24 @@ function ContactForm({ contactToEdit, onCancelEdit }) {
       <h2 className="text-xl font-semibold mb-4">{isEditing ? 'Edit Contact' : 'Create Contact'}</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">First Name *</label>
+          <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">First Name</label>
           <input
             type="text"
             id="firstName"
             name="firstName"
             value={formData.firstName}
             onChange={handleInputChange}
-            required
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           />
         </div>
         <div>
-          <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">Last Name *</label>
+          <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">Last Name</label>
           <input
             type="text"
             id="lastName"
             name="lastName"
             value={formData.lastName}
             onChange={handleInputChange}
-            required
             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           />
         </div>
